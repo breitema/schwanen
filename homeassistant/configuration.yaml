@@ -1,0 +1,60 @@
+
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+python_script:
+  requirements:
+    - paramiko>=2.7.1
+    - icalendar
+    - datetime
+    - pytz
+    - os
+    - asyncio
+    - requests
+
+logger:
+  default: info
+  logs:
+    custom_components.pyscript: debug
+
+template:
+  - sensor:
+      - name: "Durchschnittstemperatur Gaststube"
+        unit_of_measurement: "..C"
+        state: >
+          {{ ((states('sensor.temperatursensor_gaststube_temperatur') | float) +
+              (states('sensor.sensor_gaststube_2_temperatur') | float)) / 2 | round(1) }}
+
+      - name: "Gaststube Solltemperatur minus 11"
+        unit_of_measurement: "..C"
+        state: >
+          {% set temp = state_attr('climate.thermostat_gaststube_thermostat_2', 'temperature') %}
+          {{ (temp | float - 11) | round(1) }}
+
+battery_notes:
+
+
+  sender_name: "Home Assistant Battery Oberving"
+
+#configure notifications via gmail as described here: https://www.home-assistant.io/integrations/smtp/
+notify:
+  - platform: smtp
+    name: gmail
+    server: smtp.gmail.com
+    port: 587
+    timeout: 15
+    sender: breitenbuechermax@gmail.com
+    encryption: starttls
+    username: breitenbuechermax@gmail.com
+    password: !secrets max_gmail_password
+    recipient:
+      - breitenbuechermax@gmail.com
+      - mark.breitenbuecher@gmail.com
