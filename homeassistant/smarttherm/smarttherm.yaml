@@ -150,8 +150,8 @@ sensor:
     filters:
       # measure voltage and adjust for your device
       - calibrate_linear:
-          #- 1 -> 0.25 # ~8v min
-          - 1 -> 0.20 # ~8v min
+          # - 1 -> 0.09 # ~5,4v min
+          - 1 -> 0.10 # ~5,8v
           - 100.0 -> 0.70 # ~15v max
           # Original:- 100.0 -> 0.70 # ~15v max
     on_value:
