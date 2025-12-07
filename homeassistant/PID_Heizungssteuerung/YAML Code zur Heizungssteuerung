@@ -1,0 +1,262 @@
+###############################################################################
+#  HEIZUNGSREGELUNG FÜR ZENTRALE THERME MIT ZWEI RÄUMEN UND WITTERUNGSFÜHRUNG
+###############################################################################
+
+########################
+#   EINGANGSSENSOREN   #
+########################
+
+sensor:
+  # Mittelwert Saal
+  - platform: template
+    sensors:
+      saal_temperature:
+        value_template: "{{ states('sensor.sensor_saal_temperatur') | float }}"
+
+  # Mittelwert Gaststube (bereits vorhanden)
+  - platform: template
+    sensors:
+      gaststube_temperature:
+        value_template: "{{ states('sensor.durchschnittstemperatur_gaststube') | float }}"
+
+  # Heizbedarf Saal (Differenz zum Soll)
+  - platform: template
+    sensors:
+      saal_heizbedarf:
+        value_template: >
+          {{ (states('input_number.saal_solltemp')|float - states('sensor.saal_temperature')|float) }}
+
+  # Heizbedarf Gaststube (Differenz zum Soll)
+  - platform: template
+    sensors:
+      gaststube_heizbedarf:
+        value_template: >
+          {{ (states('input_number.gaststube_solltemp')|float - states('sensor.gaststube_temperature')|float) }}
+
+  # Glättung der Gaststube (träge!)
+  - platform: filter
+    name: gaststube_temperature_smooth
+    entity_id: sensor.gaststube_temperature
+    filters:
+      - filter: lowpass
+        time_constant: 1200  # 20 min
+        precision: 2
+
+####################################################
+#     EINGABEN FÜR SOLLTEMPERATUREN DER RÄUME      #
+####################################################
+
+input_select:
+  saal_modus:
+    name: Modus Saal
+    options: ["Frostschutz", "Sparen", "Heizen"]
+  gaststube_modus:
+    name: Modus Gaststube
+    options: ["Frostschutz", "Sparen", "Heizen"]
+
+input_number:
+  saal_frost:
+    name: Saal Frostschutz
+    min: 4
+    max: 30
+    step: 0.1
+    initial: 6
+
+  saal_sparen:
+    name: Saal Sparen
+    min: 4
+    max: 30
+    step: 0.1
+    initial: 16
+
+  saal_heizen:
+    name: Saal Heizen
+    min: 4
+    max: 30
+    step: 0.1
+    initial: 21
+
+  gaststube_frost:
+    name: Gaststube Frostschutz
+    min: 4
+    max: 30
+    step: 0.1
+    initial: 6
+
+  gaststube_sparen:
+    name: Gaststube Sparen
+    min: 4
+    max: 30
+    step: 0.1
+    initial: 17
+
+  gaststube_heizen:
+    name: Gaststube Heizen
+    min: 4
+    max: 30
+    step: 0.1
+    initial: 22
+
+##########################################
+#       ZIELTEMPERATUREN AUTOMATISCH     #
+##########################################
+
+template:
+  - trigger:
+      - platform: state
+        entity_id:
+          - input_select.saal_modus
+          - input_select.gaststube_modus
+    sensor:
+      saal_solltemp:
+        value_template: >
+          {% set m = states('input_select.saal_modus') %}
+          {% if m == 'Heizen' %}
+            {{ states('input_number.saal_heizen') }}
+          {% elif m == 'Sparen' %}
+            {{ states('input_number.saal_sparen') }}
+          {% else %}
+            {{ states('input_number.saal_frost') }}
+          {% endif %}
+
+      gaststube_solltemp:
+        value_template: >
+          {% set m = states('input_select.gaststube_modus') %}
+          {% if m == 'Heizen' %}
+            {{ states('input_number.gaststube_heizen') }}
+          {% elif m == 'Sparen' %}
+            {{ states('input_number.gaststube_sparen') }}
+          {% else %}
+            {{ states('input_number.gaststube_frost') }}
+          {% endif %}
+
+#############################################
+#     PID-STEUERUNG FÜR VORLAUFTEMPERATUR   #
+#############################################
+
+climate:
+  - platform: generic_thermostat
+    name: Vorlaufregelung PID
+    heater: switch.fake_heater  # Dummy
+    target_sensor: sensor.soll_vorlauf_temperatur
+    min_temp: 20
+    max_temp: 70
+    ac_mode: false
+    cold_tolerance: 0.3
+    hot_tolerance: 0.3
+    initial_hvac_mode: "heat"
+
+##############################
+# WITTERUNGSGEFÜHRTE KURVE   #
+##############################
+
+template:
+  - sensor:
+      - name: wetter_vorlaufbasis
+        unit_of_measurement: "°C"
+        state: >
+          {% set aussen = states('sensor.externer_temperatursensor_temperatur')|float %}
+          {{ 50 - (aussen * 1.2) }}
+
+###################################
+# GESAMTER BEDARF BEIDER RÄUME    #
+###################################
+
+  - sensor:
+      - name: raum_heizbedarf_gesamt
+        state: >
+          {{
+            (states('sensor.saal_heizbedarf')|float(0))
+            +
+            (states('sensor.gaststube_heizbedarf')|float(0) * 1.4)
+          }}
+
+#############################################
+# SOLL-VORLAUFTEMPERATUR (PID + Wetter)     #
+#############################################
+
+  - sensor:
+      - name: soll_vorlauf_temperatur
+        unit_of_measurement: "°C"
+        state: >
+          {% set basis = states('sensor.wetter_vorlaufbasis')|float %}
+          {% set last = states('sensor.raum_heizbedarf_gesamt')|float %}
+          {% set komp = last * 2 %}
+          {{ [20, basis + komp] | max | min(70) }}
+
+###################################################
+#  AUTOMATIK FÜR VENTILE: EIN RAUM HEIZT ALLEIN   #
+###################################################
+
+automation:
+  - id: raum_priorisierung
+    alias: "Nur ein Raum hat Heizbedarf → Ventile umschalten"
+    trigger:
+      - platform: state
+        entity_id:
+          - sensor.saal_heizbedarf
+          - sensor.gaststube_heizbedarf
+    action:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.saal_heizbedarf')|float > 0.7 }}"
+              - condition: template
+                value_template: "{{ states('sensor.gaststube_heizbedarf')|float < 0.3 }}"
+            sequence:
+              - service: climate.set_hvac_mode
+                target:
+                  entity_id:
+                    - climate.gaststube_1_thermostat
+                    - climate.thermostat_gaststube_thermostat_2
+                    - climate.gaststube_3_thermostat
+                    - climate.gaststube_4_thermostat
+                    - climate.gaststube_5_thermostat
+                    - climate.gaststube_6_thermostat
+                data:
+                  hvac_mode: "off"
+              - service: climate.set_temperature
+                target:
+                  entity_id:
+                    - climate.saal_1_thermostat
+                    - climate.saal2_thermostat
+                    - climate.sonoff_trvzb_thermostat
+                    - climate.saal_4_thermostat
+                    - climate.saal_5_thermostat
+                    - climate.saal_6_thermostat
+                    - climate.saal_7_thermostat
+                    - climate.sonoff_trvzb_thermostat_2
+                    - climate.saal_8_thermostat
+                data:
+                  temperature: 30
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.gaststube_heizbedarf')|float > 0.7 }}"
+              - condition: template
+                value_template: "{{ states('sensor.saal_heizbedarf')|float < 0.3 }}"
+            sequence:
+              - service: climate.set_hvac_mode
+                target:
+                  entity_id:
+                    - climate.saal_1_thermostat
+                    - climate.saal2_thermostat
+                    - climate.sonoff_trvzb_thermostat
+                    - climate.saal_4_thermostat
+                    - climate.saal_5_thermostat
+                    - climate.saal_6_thermostat
+                    - climate.saal_7_thermostat
+                    - climate.sonoff_trvzb_thermostat_2
+                    - climate.saal_8_thermostat
+                data:
+                  hvac_mode: "off"
+              - service: climate.set_temperature
+                target:
+                  entity_id:
+                    - climate.gaststube_1_thermostat
+                    - climate.thermostat_gaststube_thermostat_2
+                    - climate.gaststube_3_thermostat
+                    - climate.gaststube_4_thermostat
+                    - climate.gaststube_5_thermostat
+                    - climate.gaststube_6_thermostat
+                data:
+                  temperature: 30
