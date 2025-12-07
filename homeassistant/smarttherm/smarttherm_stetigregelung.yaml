@@ -42,6 +42,34 @@ ota:
 
 captive_portal:
 
+# 1-Wire Bus für Dallas Sensoren auf GPIO0
+one_wire:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT
+
+sensor:
+  - platform: dallas_temp
+    address: 0x74106f7c0a646128
+    name: "dallas_vorlauf"
+    update_interval: 10s
+    unit_of_measurement: "°C"
+    icon: "mdi:thermometer-plus"
+    device_class: "temperature"
+    state_class: "measurement"
+    accuracy_decimals: 2
+  - platform: dallas_temp
+    address: 0x6b5103710a646128
+    name: "dallas_ruecklauf"
+    update_interval: 10s
+    unit_of_measurement: "°C"
+    icon: "mdi:thermometer-minus"
+    device_class: "temperature"
+    state_class: "measurement"
+    accuracy_decimals: 2
+
+
 output:
   - platform: esp8266_pwm
     pin: #D8 # octocopler drive
@@ -114,31 +142,6 @@ number:
 
 
 
-one_wire:
-  - platform: gpio
-    pin:
-      number: GPIO0
-      mode: INPUT
-
-sensor:
-  - platform: dallas_temp
-    address: 0x74106f7c0a646128
-    name: "dallas_vorlauf"
-    update_interval: 10s
-    unit_of_measurement: "°C"
-    icon: "mdi:thermometer-plus"
-    device_class: "temperature"
-    state_class: "measurement"
-    accuracy_decimals: 2
-  - platform: dallas_temp
-    address: 0x6b5103710a646128
-    name: "dallas_ruecklauf"
-    update_interval: 10s
-    unit_of_measurement: "°C"
-    icon: "mdi:thermometer-minus"
-    device_class: "temperature"
-    state_class: "measurement"
-    accuracy_decimals: 2
 
   # map percent slider value to float level of pwm output
   # based on http://www.roter-unimog.de/p4/46-hzg-technik.htm
@@ -150,8 +153,10 @@ sensor:
     filters:
       # measure voltage and adjust for your device
       - calibrate_linear:
-          - 1 -> 0.25 # ~8v min
-          - 100.0 -> 0.62 # ~15v max
+          # - 1 -> 0.09 # ~5,4v min
+          - 1 -> 0.10 # ~5,8v
+          - 100.0 -> 0.70 # ~15v max
+          # Original:- 100.0 -> 0.70 # ~15v max
     on_value:
       then:
         - logger.log:

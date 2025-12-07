@@ -1,0 +1,62 @@
+esphome:
+  name: schrittmotor
+  friendly_name: Schrittmotor ULN2003
+
+esp8266:
+  board: nodemcuv2
+
+wifi:
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+
+    - ssid: !secret wifi_ssid_max
+      password: !secret wifi_password_max
+
+    - ssid: ${unit_name} Fallback Hotspot
+      password: !secret fallback_password
+  #  fast_connect: true
+  reboot_timeout: 0s
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Schrittmotor Fallback Hotspot"
+    password: "12345678"
+
+captive_portal:
+
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+
+stepper:
+  - platform: uln2003
+    id: mein_stepper
+    pin_a: GPIO5      # D1 = IN1
+    pin_b: GPIO4      # D2 = IN2
+    pin_c: GPIO0      # D3 = IN3
+    pin_d: GPIO12     # D6 = IN4
+    max_speed: 250 steps/s
+    sleep_when_done: true
+    step_mode: FULL_STEP  # Optional: FULL_STEP, HALF_STEP, WAVE_DRIVE
+
+# Number Entity für HA-Steuerung
+number:
+  - platform: template
+    name: "Stepper Position"
+    min_value: -2000
+    max_value: 2000
+    step: 50
+    optimistic: true
+    set_action:
+      - stepper.set_target:
+          id: mein_stepper
+          target: !lambda 'return (int)x;'
