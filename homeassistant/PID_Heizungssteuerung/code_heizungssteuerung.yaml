@@ -58,44 +58,44 @@ input_number:
   saal_frost:
     name: Saal Frostschutz
     min: 4
-    max: 30
+    max: 35
     step: 0.1
     initial: 6
 
   saal_sparen:
     name: Saal Sparen
     min: 4
-    max: 30
+    max: 35
     step: 0.1
     initial: 16
 
   saal_heizen:
     name: Saal Heizen
     min: 4
-    max: 30
+    max: 35
     step: 0.1
     initial: 22
 
   gaststube_frost:
     name: Gaststube Frostschutz
     min: 4
-    max: 30
+    max: 35
     step: 0.1
     initial: 6
 
   gaststube_sparen:
     name: Gaststube Sparen
     min: 4
-    max: 30
+    max: 35
     step: 0.1
     initial: 17
 
   gaststube_heizen:
     name: Gaststube Heizen
     min: 4
-    max: 30
+    max: 35
     step: 0.1
-    initial: 22
+    initial: 24
 
 ##########################################
 #       ZIELTEMPERATUREN AUTOMATISCH     #
@@ -130,27 +130,10 @@ template:
             {{ states('input_number.gaststube_frost') }}
           {% endif %}
 
-#############################################
-#     PID-STEUERUNG FÜR VORLAUFTEMPERATUR   #
-#############################################
-
-climate:
-  - platform: generic_thermostat
-    name: Vorlaufregelung PID
-    heater: switch.fake_heater  # Dummy
-    target_sensor: sensor.soll_vorlauf_temperatur
-    min_temp: 20
-    max_temp: 70
-    ac_mode: false
-    cold_tolerance: 0.3
-    hot_tolerance: 0.3
-    initial_hvac_mode: "heat"
-
 ##############################
 # WITTERUNGSGEFÜHRTE KURVE   #
 ##############################
 
-template:
   - sensor:
       - name: wetter_vorlaufbasis
         unit_of_measurement: "°C"
@@ -184,6 +167,22 @@ template:
           {% set komp = last * 2 %}
           {{ [20, basis + komp] | max | min(70) }}
 
+#############################################
+#     PID-STEUERUNG FÜR VORLAUFTEMPERATUR   #
+#############################################
+
+climate:
+  - platform: generic_thermostat
+    name: Vorlaufregelung PID
+    heater: switch.fake_heater  # Dummy
+    target_sensor: sensor.soll_vorlauf_temperatur
+    min_temp: 20
+    max_temp: 70
+    ac_mode: false
+    cold_tolerance: 0.3
+    hot_tolerance: 0.3
+    initial_hvac_mode: "heat"
+
 ###################################################
 #  AUTOMATIK FÜR VENTILE: EIN RAUM HEIZT ALLEIN   #
 ###################################################
@@ -208,7 +207,7 @@ automation:
                 target:
                   entity_id:
                     - climate.gaststube_1_thermostat
-                    - climate.thermostat_gaststube_thermostat_2
+                    - climate.gaststube_2_thermostat
                     - climate.gaststube_3_thermostat
                     - climate.gaststube_4_thermostat
                     - climate.gaststube_5_thermostat
@@ -219,14 +218,14 @@ automation:
                 target:
                   entity_id:
                     - climate.saal_1_thermostat
-                    - climate.saal2_thermostat
-                    - climate.sonoff_trvzb_thermostat
+                    - climate.saal_2_thermostat
+                    - climate.saal_3_thermostat
                     - climate.saal_4_thermostat
                     - climate.saal_5_thermostat
                     - climate.saal_6_thermostat
                     - climate.saal_7_thermostat
-                    - climate.sonoff_trvzb_thermostat_2
                     - climate.saal_8_thermostat
+                    - climate.saal_9_thermostat
                 data:
                   temperature: 30
           - conditions:
@@ -239,21 +238,21 @@ automation:
                 target:
                   entity_id:
                     - climate.saal_1_thermostat
-                    - climate.saal2_thermostat
-                    - climate.sonoff_trvzb_thermostat
+                    - climate.saal_2_thermostat
+                    - climate.saal_3_thermostat
                     - climate.saal_4_thermostat
                     - climate.saal_5_thermostat
                     - climate.saal_6_thermostat
                     - climate.saal_7_thermostat
-                    - climate.sonoff_trvzb_thermostat_2
                     - climate.saal_8_thermostat
+                    - climate.saal_9_thermostat
                 data:
                   hvac_mode: "off"
               - service: climate.set_temperature
                 target:
                   entity_id:
                     - climate.gaststube_1_thermostat
-                    - climate.thermostat_gaststube_thermostat_2
+                    - climate.gaststube_2_thermostat
                     - climate.gaststube_3_thermostat
                     - climate.gaststube_4_thermostat
                     - climate.gaststube_5_thermostat
