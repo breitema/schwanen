@@ -17,13 +17,8 @@ wifi:
 
 esphome:
   name: ${unit_name}
-#  on_boot:
-#    priority: -100 # after everything is initialized
-#    then:
-#      - script.execute: update_pwm_level
 
 esp8266:
-  #  board: esp01_1m
   board: d1_mini
 
 
@@ -80,74 +75,21 @@ output:
     frequency: 1000Hz
 
 # Bang-Bang Climate Controller (Zweipunktregler)
-#climate:
-#  - platform: bang_bang
-#    name: "Heizungs Thermostat"
-#    sensor: junkers_vorlauf
-#    default_target_temperature_low: 50.0°C
-#    default_target_temperature_high: 53.0°C  # 1K Hysterese
-#    heat_action:
-#      - output.set_level:
-#          id: pwm_heizung
-#          level: 0.3
-#    idle_action:
-#      - output.set_level:
-#          id: pwm_heizung
-#          level: 0.01
-#    visual:
-#      min_temperature: 30°C
-#      max_temperature: 80°C
-#      temperature_step: 0.5°C
-#
-
 climate:
-  - platform: thermostat
-    id: heizungs_climate
+  - platform: bang_bang
     name: "Heizungs Thermostat"
     sensor: junkers_vorlauf
-
-    # EIN einziger Mittelwert (default_target_temperature)
-    default_target_temperature: 50°C
-
-#    # Automatische Hysterese um den Mittelwert (default: 0.5°C)
-#    heat_deadband: 5.0°C  # Ein bei < 45.0°C
-#    heat_overrun: 5.0°C   # Aus bei > 55.0°C
-    # Dynamische Hysterese aus HA-Slider
-#    heat_deadband: !lambda 'return id(hysterese_ha).state;'
-#    heat_overrun: !lambda 'return id(hysterese_ha).state;'
-
-    # Schutz vor Kurzschaltvorgängen
-    min_heating_run_time: 300s  # 5min Mindestlaufzeit
-    min_heating_off_time: 300s  # 5min Mindestauszeit
-
-    # PWM-Berechnung in den Actions
-    heat_output:
+    default_target_temperature_low: 50.0°C
+    default_target_temperature_high: 60.0°C  # 1K Hysterese
+    heat_action:
       - output.set_level:
           id: pwm_heizung
-          level: 0.30  # > 0.3 für Heat
-    idle_output:
+          level: 0.3
+    idle_action:
       - output.set_level:
           id: pwm_heizung
-          level: 0.01  # Idle-Wert
-
+          level: 0.01
     visual:
       min_temperature: 30°C
       max_temperature: 80°C
       temperature_step: 0.5°C
-
-    # Nur Heizmodus
-    modes:
-      - heat
-
-input_number:
-  junkers_hysterese:
-    name: "Heizung Hysterese"
-    min: 2.0
-    max: 10.0
-    step: 0.1
-    unit_of_measurement: "°C"
-    initial: 5
-
-
-
-
