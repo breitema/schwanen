@@ -9,6 +9,8 @@ frontend:
 automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
+sensor: !include sensors.yaml
+input_number: !include input_numbers.yaml
 
 python_script:
   requirements:
@@ -27,34 +29,138 @@ logger:
 
 template:
   - sensor:
-      - name: "Durchschnittstemperatur Gaststube"
-        unit_of_measurement: "..C"
+      - name: "saal_solltemp"
         state: >
-          {{ ((states('sensor.temperatursensor_gaststube_temperatur') | float) +
-              (states('sensor.sensor_gaststube_2_temperatur') | float)) / 2 | round(1) }}
-
-      - name: "Gaststube Solltemperatur minus 11"
-        unit_of_measurement: "..C"
+          {% set m = states('input_select.saal_modus') %}
+          {% if m == 'Heizen' %}
+            {{ states('input_number.saal_heizen') }}
+          {% elif m == 'Sparen' %}
+            {{ states('input_number.saal_sparen') }}
+          {% else %}
+            {{ states('input_number.saal_frost') }}
+          {% endif %}
+  - sensor:
+      - name: "gaststube_solltemp"
         state: >
-          {% set temp = state_attr('climate.thermostat_gaststube_thermostat_2', 'temperature') %}
-          {{ (temp | float - 11) | round(1) }}
+          {% set m = states('input_select.gaststube_modus') %}
+          {% if m == 'Heizen' %}
+            {{ states('input_number.gaststube_heizen') }}
+          {% elif m == 'Sparen' %}
+            {{ states('input_number.gaststube_sparen') }}
+          {% else %}
+            {{ states('input_number.gaststube_frost') }}
+          {% endif %}
+  - sensor:
+      - name: "Gaststube Heizbedarf"
+        unique_id: sensor.gaststube_heizbedarf_5
+        state: "{{ states('sensor.gaststube_solltemp')|float - states('sensor.gaststube_temperature')|float }}"
+  - sensor:
+      - name: "Saal Heizbedarf"
+        unique_id: sensor.saal_heizbedarf_5
+        state: "{{ states('sensor.saal_solltemp')|float - states('sensor.saal_temperature')|float }}"
+  - sensor:
+      - default_entity_id: sensor.gaststube_temperature
+        state: '{{ states(''sensor.durchschnitt_gaststube_helfer_direkt'') | float }}'
+        name: gaststube_temperature
+  - sensor:
+      - default_entity_id: sensor.saal_temperature
+        state: '{{ states(''sensor.durchschnitt_saal_helfer'') | float }}'
+        name: saal_temperature
+  ##############################
+  # WITTERUNGSGEFÜHRTE KURVE   #
+  ##############################
 
-battery_notes:
+  - sensor:
+      - name: wetter_vorlaufbasis
+        unit_of_measurement: "°C"
+        state: >
+          {% set aussen = states('sensor.aussentemperatursensor_temperatur')|float %}
+          {{ 62 - (aussen * 0.8) }}
+          # {{ 60 - (aussen * 1.2) }}
 
+  ###################################
+  # GESAMTER BEDARF BEIDER RÄUME    #
+  ###################################
 
-  sender_name: "Home Assistant Battery Oberving"
+  - sensor:
+      - name: raum_heizbedarf_gesamt
+        state: >
+          {{
+            (states('sensor.saal_heizbedarf_5')|float(0) * 4.2)
+            +
+            (states('sensor.gaststube_heizbedarf_5')|float(1) * 9.6)
+          }}
 
-#configure notifications via gmail as described here: https://www.home-assistant.io/integrations/smtp/
+  #############################################
+  # SOLL-VORLAUFTEMPERATUR (PID + Wetter)     #
+  #############################################
+
+  - sensor:
+      - name: soll_vorlauf_temperatur
+        unit_of_measurement: "°C"
+        state: >
+          {% set basis = states('sensor.wetter_vorlaufbasis')|float %}
+          {% set last = states('sensor.raum_heizbedarf_gesamt')|float %}
+          {% set komp = last * 2 %}
+          {{ (basis + komp)|float}}
+  
+
+  #####################################################
+  # Werte für Solltemperatur High und low berechnen   #
+  #####################################################
+
+  - sensor:
+      - name: "target_temp_low"
+        unit_of_measurement: "°C"
+        state: >
+          {{ states('sensor.soll_vorlauf_temperatur')|float - 5 }}
+      - name: "target_temp_high"
+        unit_of_measurement: "°C"
+        state: >
+          {{ states('sensor.soll_vorlauf_temperatur')|float + 5 }}
+
+input_select:
+  saal_modus:
+    name: Modus Saal
+    options: ["Frostschutz", "Sparen", "Heizen"]
+  gaststube_modus:
+    name: Modus Gaststube
+    options: ["Frostschutz", "Sparen", "Heizen"]
+
 notify:
   - platform: smtp
     name: gmail
     server: smtp.gmail.com
     port: 587
     timeout: 15
-    sender: breitenbuechermax@gmail.com
+    sender: mark.breitenbuecher@gmail.com
+    sender_name: "Home Assistant Alert"
     encryption: starttls
-    username: breitenbuechermax@gmail.com
-    password: !secrets max_gmail_password
+    username: mark.breitenbuecher@gmail.com
+    password: !secret max_gmail_password
     recipient:
       - breitenbuechermax@gmail.com
       - mark.breitenbuecher@gmail.com
+
+climate:
+  - platform: generic_thermostat
+    name: Vorlaufregelung PID
+    heater: switch.fake_heater  # Dummy
+    target_sensor: sensor.soll_vorlauf_temperatur
+    min_temp: 20
+    max_temp: 70
+    ac_mode: false
+    cold_tolerance: 0.3
+    hot_tolerance: 0.3
+    initial_hvac_mode: "heat"
+
+input_boolean:
+  manueller_modus_therme:
+    name: Manueller Modus Therme
+    icon: mdi:hand
+  manueller_modus_saal:
+    name: Manueller Modus Saal
+    icon: mdi:hand
+  manueller_modus_gaststube:
+    name: Manueller Modus Gaststube
+    icon: mdi:hand
