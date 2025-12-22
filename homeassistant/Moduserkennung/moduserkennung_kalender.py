@@ -1,7 +1,6 @@
-from datetime import datetime, timedelta
-from dateutil.parser import isoparse
+from datetime import datetime, timedelta, timezone
 
-now = datetime.now()
+now = datetime.now(timezone.utc)
 
 # =========================
 # HILFSFUNKTIONEN
@@ -9,24 +8,35 @@ now = datetime.now()
 
 def get_calendar_events(entity_id):
     """Liefert die aktuellen Kalenderdaten als Liste"""
-    state = hass.states.get(entity_id)
-    if not state:
-        return []
+    event_list = []
+    try:
+        # Thread-sicheren Service-Call
+        result = hass.services.call(
+            'calendar',
+            'get_events',
+            {
+                'entity_id': entity_id,
+                'duration': {'hours': 24}
+            },
+            blocking=True,
+            return_response=True
+        )
 
-    events = state.attributes.get("events")
-    if events:
-        return events
+        agenda = result[entity_id]
+        events = agenda['events']
 
-    # Fallback für Einzeltermine
-    start = state.attributes.get("start_time")
-    message = state.attributes.get("message")
-    if start and message:
-        return [{
-            "start": start,
-            "message": message
-        }]
+        anzahl_events = len(events)
 
-    return []
+        logger.error(f"typeofagenda: {type(events)} len: {len(events)} events: {events} kalender ID: {entity_id}")
+
+    except Exception as e:
+        hass.states.set('input_text.kalender_error', str(e))
+
+    return events
+
+
+def parse_iso(dt):
+    return datetime.fromisoformat(dt.replace("Z", "+00:00"))
 
 
 def find_event(events, keyword, hours):
@@ -34,8 +44,10 @@ def find_event(events, keyword, hours):
     limit = now + timedelta(hours=hours)
 
     for event in events:
-        start = isoparse(event["start"])
-        name = event.get("message", "").lower()
+
+        start = parse_iso(event["start"])
+        name = event.get("summary", "").lower()
+        logger.warning(f"findevents: event: {event} | start: {start} |name: {name} | now: {now} | limit: {limit}"  )
 
         if keyword in name and now <= start <= limit:
             return True
@@ -48,14 +60,15 @@ def has_closed_event_today(events):
     today = now.date()
 
     for event in events:
-        start = isoparse(event["start"]).date()
+        start = parse_iso(event["start"]).date()
         name = event.get("message", "").lower()
 
         if start == today and (
-            "gaststätte geschlossen" in name or
-            "gaststube geschlossen" in name
+                "gaststätte geschlossen" in name or
+                "gaststube geschlossen" in name
         ):
             return True
+
 
     return False
 
@@ -65,7 +78,7 @@ def has_closed_event_today(events):
 # =========================
 
 saal_events = get_calendar_events("calendar.heizkalender")
-
+logger.error(f"gefundene events: {saal_events}")
 if find_event(saal_events, "@saal", 3):
     hass.services.call(
         "input_select", "select_option",
@@ -74,6 +87,8 @@ if find_event(saal_events, "@saal", 3):
             "option": "Heizen"
         }
     )
+    logger.warning("Modus Saal auf heizen gesetzt (3h)")
+
 
 elif find_event(saal_events, "@saal", 10):
     hass.services.call(
@@ -83,6 +98,7 @@ elif find_event(saal_events, "@saal", 10):
             "option": "Sparen"
         }
     )
+    logger.warning("Modus Saal auf sparen gesetzt (10h)")
 
 else:
     hass.services.call(
@@ -92,6 +108,7 @@ else:
             "option": "Frostschutz"
         }
     )
+    logger.warning("Modus Saal auf Frostschutz gesetzt (>10h)")
 
 
 # =========================
@@ -103,7 +120,7 @@ gast_oeffnung_events = get_calendar_events("calendar.schwanen_offnungszeiten")
 
 # Prüfen ob heute geschlossen
 geschlossen = has_closed_event_today(gast_heiz_events)
-
+logger.info(f"Gaststube_has_closed: {geschlossen}")
 # Wenn geschlossen → Öffnungszeiten ignorieren
 if geschlossen:
     gast_events = gast_heiz_events
@@ -119,6 +136,7 @@ if find_event(gast_events, "@gaststube", 3):
             "option": "Heizen"
         }
     )
+    logger.warning("Modus Gaststube auf heizen gesetzt (3h)")
 
 elif find_event(gast_events, "@gaststube", 10):
     hass.services.call(
@@ -128,6 +146,7 @@ elif find_event(gast_events, "@gaststube", 10):
             "option": "Sparen"
         }
     )
+    logger.warning("Modus Gaststube auf sparen gesetzt (10h)")
 
 else:
     hass.services.call(
@@ -137,3 +156,4 @@ else:
             "option": "Frostschutz"
         }
     )
+    logger.warning("Modus Gaststube auf Frostschutz gesetzt (>10h)")
