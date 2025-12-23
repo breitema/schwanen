@@ -126,7 +126,7 @@ def sync_calendar():
                 logger.info(f"Event aus ICS: {enhanced_summary} (ICS-UID: {ics_uid})")
 
         if not new_events:
-            logger.error("Keine Events in ICS gefunden")
+            logger.warning("Keine Events in ICS gefunden")
             return
 
         logger.info(f"Insgesamt {event_count} Events in ICS verarbeitet")
@@ -153,7 +153,6 @@ def sync_calendar():
                     ics_content = f.read()
                     cal = Calendar.from_ical(ics_content)
                     for component in cal.walk():
-                        #                        logger.warning(f"HERE5: {component}")
                         if component.name == "VEVENT":
                             desc = str(component.get('DESCRIPTION', ''))
                             ics_uid_from_desc = extract_ics_uid(desc)
