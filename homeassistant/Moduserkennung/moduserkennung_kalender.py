@@ -73,7 +73,9 @@ if find_event(saal_events, "@saal", 3):
             "entity_id": "input_select.saal_modus",
             "option": "Heizen"
         }
+        logger.warning("Modus Saal auf heizen gesetzt")
     )
+
 
 elif find_event(saal_events, "@saal", 10):
     hass.services.call(
@@ -82,6 +84,7 @@ elif find_event(saal_events, "@saal", 10):
             "entity_id": "input_select.saal_modus",
             "option": "Sparen"
         }
+    logger.warning("Modus Saal auf sparen gesetzt")
     )
 
 else:
@@ -91,6 +94,7 @@ else:
             "entity_id": "input_select.saal_modus",
             "option": "Frostschutz"
         }
+    logger.warning("Modus Saal auf Frostschutz gesetzt")
     )
 
 
@@ -118,8 +122,8 @@ if find_event(gast_events, "@gaststube", 3):
             "entity_id": "input_select.gaststube_modus",
             "option": "Heizen"
         }
+    logger.warning("Modus Gaststube auf heizen gesetzt")
     )
-
 elif find_event(gast_events, "@gaststube", 10):
     hass.services.call(
         "input_select", "select_option",
@@ -127,6 +131,7 @@ elif find_event(gast_events, "@gaststube", 10):
             "entity_id": "input_select.gaststube_modus",
             "option": "Sparen"
         }
+    logger.warning("Modus Gaststube auf sparen gesetzt")
     )
 
 else:
@@ -136,4 +141,5 @@ else:
             "entity_id": "input_select.gaststube_modus",
             "option": "Frostschutz"
         }
+        logger.warning("Modus Gaststube auf Frostschutz gesetzt")
     )
