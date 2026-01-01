@@ -71,24 +71,6 @@ def find_event(events, keyword, hours):
     return False
 
 
-def has_closed_event_today(events):
-    """Prüft ob heute 'Gaststätte geschlossen' o.ä. existiert"""
-    today = now.date()
-
-    for event in events:
-        start = parse_iso(event["start"]).date()
-        name = event.get("message", "").lower()
-
-        if start == today and (
-                "gaststätte geschlossen" in name or
-                "gaststube geschlossen" in name
-        ):
-            return True
-
-
-    return False
-
-
 # =========================
 # SAAL
 # =========================
@@ -147,9 +129,11 @@ def moduserkennung_gaststube():
     gast_heiz_events = get_calendar_events("calendar.heizkalender")
     gast_oeffnung_events = get_calendar_events("calendar.schwanen_offnungszeiten")
 
-    # Prüfen ob heute geschlossen
-    geschlossen = has_closed_event_today(gast_heiz_events)
-    logger.info(f"Gaststube_has_closed: {geschlossen}")
+    # Prüfen ob heute geschlossen.
+    # D.h. wenn im Clubdesk-Kalender ein Termin mit dem Namen "Gaststätte geschlossen" aktiv ist.
+    logger.info(f"check if Gaststube is closed")
+    geschlossen = event_currently_active(gast_heiz_events, "gaststätte geschlossen")
+    logger.info(f"Gaststube is closed: {geschlossen}")
     # Wenn geschlossen → Öffnungszeiten ignorieren
     if geschlossen:
         gast_events = gast_heiz_events
