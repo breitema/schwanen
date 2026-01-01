@@ -1,11 +1,8 @@
 import requests
 import icalendar
 from icalendar import Calendar
-from datetime import datetime
 import re
 import os
-import json
-import time
 
 def sync_calendar():
     try:
@@ -73,11 +70,10 @@ def sync_calendar():
                 end_dt = dtend.dt if dtend else None
 
                 # 6. Ort basierend auf Keywords in Summary erg..nzen
-                enhanced_summary = summary
                 found_location = None
 
                 # Pr..fe Description und Location auf Keywords
-                search_text = (description + ' ' + location + ' ' + summary).lower()
+                search_text = location.lower()
 
                 found_locations = set()
 
@@ -107,7 +103,7 @@ def sync_calendar():
                 # 7. ICS-UID in Beschreibung einbetten
                 enhanced_description = description
                 if ics_uid:
-                    # Markiere die UID eindeutig mit einem Pr..fix
+                    # Markiere die UID eindeutig mit einem Präfix
                     enhanced_description = f"[ICS-UID:{ics_uid}]\n{description}".strip()
                 # print(f"type {type(start_dt)} und {type(end_dt)}")
                 # print(f"type tzinfo {type(start_dt.replace(tzinfo=None))}")
@@ -168,7 +164,6 @@ def sync_calendar():
                                 logger.info(f"Bestehendes Event: {summary} (ICS-UID: {ics_uid_from_desc})")
         except Exception as e:
             logger.error(f"Konnte bestehende Events nicht auslesen: {e}")
-            existing_ha_events = {}
         # 9. Vergleich und Synchronisierung
         created_count = 0
         updated_count = 0
