@@ -9,7 +9,7 @@ frontend:
 automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
-sensor: !include sensors.yaml
+#sensor: !include sensors.yaml
 input_number: !include input_numbers.yaml
 
 python_script:
@@ -29,7 +29,8 @@ logger:
 
 template:
   - sensor:
-      - name: "saal_solltemp"
+      - name: "Saal Solltemperatur"
+        unique_id: sensor.saal_solltemperatur
         state: >
           {% set m = states('input_select.saal_modus') %}
           {% if m == 'Heizen' %}
@@ -40,7 +41,8 @@ template:
             {{ states('input_number.saal_frost') }}
           {% endif %}
   - sensor:
-      - name: "gaststube_solltemp"
+      - name: "Gaststube Solltemperatur"
+        unique_id: sensor.gaststube_solltemperatur
         state: >
           {% set m = states('input_select.gaststube_modus') %}
           {% if m == 'Heizen' %}
@@ -51,37 +53,39 @@ template:
             {{ states('input_number.gaststube_frost') }}
           {% endif %}
   - sensor:
-      - name: "Gaststube Heizbedarf default"
-        unique_id: sensor.gaststube_heizbedarf_default
-        state: "{{ states('sensor.gaststube_solltemp')|float - states('sensor.gaststube_temperature_default')|float }}"
+      - name: "Gaststube Heizbedarf berechnet"
+        unique_id: sensor.gaststube_heizbedarf_berechnet
+        state: "{{ states('sensor.gaststube_solltemperatur')|float - states('sensor.durchschnitt_gaststube_helfer')|float }}"
   - sensor:
-      - name: "Saal Heizbedarf default"
-        unique_id: sensor.saal_heizbedarf_default
-        state: "{{ states('sensor.saal_solltemp')|float - states('sensor.saal_temperature_default')|float }}"
+      - name: "Saal Heizbedarf berechnet"
+        unique_id: sensor.saal_heizbedarf_berechnet
+        state: "{{ states('sensor.saal_solltemperatur')|float - states('sensor.durchschnitt_saal_helfer')|float }}"
+
   - sensor:
-      - default_entity_id: sensor.gaststube_temperature_default
-        state: '{{ states(''sensor.durchschnitt_gaststube_helfer_direkt'') | float }}'
-        name: gaststube_temperature
-  - sensor:
-      - default_entity_id: sensor.saal_temperature_default
-        state: '{{ states(''sensor.durchschnitt_saal_helfer'') | float }}'
-        name: saal_temperature
+      - name: "Heizbedarf Hoeherer Wert"
+        unique_id: sensor.heizbedarf_hoeherer_wert
+        unit_of_measurement: ""
+        state: >
+          {% set a = states('sensor.gaststube_heizbedarf_berechnet') | float(0) %}
+          {% set b = states('sensor.saal_heizbedarf_berechnet') | float(0) %}
+          {{ [0, a, b] | max }}
 
   #############################################
   # SOLL-VORLAUFTEMPERATUR (PID + Wetter)     #
   #############################################
 
   - sensor:
-      - name: soll_vorlauf_temperatur
+      - name: "Therme Soll-Vorlauftemperatur"
+        unique_id: sensor.soll_vorlauf_temperatur
         unit_of_measurement: "°C"
         state: >
           {% set aussentemp = states('sensor.aussentemperatursensor_temperatur') | float(0) %}
-          {% set heizbedarf = states('sensor.hoeherer_wert') | float(0) %}
+          {% set heizbedarf = states('sensor.heizbedarf_hoeherer_wert') | float(0) %}
 
           {% if heizbedarf == 0 %}
             0
           {% else %}
-            {% set gewicht = [1, [0.2, heizbedarf / 10] | max ] | min %}
+            {% set gewicht = heizbedarf / 10 %}
             {% set vl =
                35
                + (20 - aussentemp) * 1.2 * gewicht
@@ -96,27 +100,18 @@ template:
   #####################################################
 
   - sensor:
-      - name: "target_temp_low"
+      - name: "Therme Zieltemperatur low"
+        unique_id: sensor.therme_target_temp_low
         unit_of_measurement: "°C"
         state: >
-          {{ states('sensor.soll_vorlauf_temperatur')|float - 5 }}
-      - name: "target_temp_high"
+          {{ states('sensor.therme_soll_vorlauftemperatur')|float - 5 }}
+      - name: "Therme Zieltemperatur high"
+        unique_id: sensor.therme_target_temp_high
         unit_of_measurement: "°C"
         state: >
-          {{ states('sensor.soll_vorlauf_temperatur')|float + 5 }}
+          {{ states('sensor.therme_soll_vorlauftemperatur')|float + 5 }}
 
-  ##############################################################
-  # Sensor zur Ermittlung des höheren Heizbedarfs (minimal 0)  #
-  ##############################################################
 
-  - sensor:
-      - name: "Hoeherer Wert"
-        unique_id: sensor.hoeherer_wert
-        unit_of_measurement: ""
-        state: >
-          {% set a = states('sensor.gaststube_heizbedarf_default') | float(0) %}
-          {% set b = states('sensor.saal_heizbedarf_default') | float(0) %}
-          {{ [0, a, b] | max }}
 
 
 input_select:
