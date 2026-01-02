@@ -46,9 +46,6 @@ def sync_calendar():
         # Keyword ... Ort (case-insensitive)
         location_keywords = {
             'gaststube': '@gaststube',
-            'gaststätte': '@gaststube',
-            'gastro': '@gaststube',
-            'restaurant': '@gaststube',
             'saal': '@saal',
         }
         # 5. Events aus ICS extrahieren

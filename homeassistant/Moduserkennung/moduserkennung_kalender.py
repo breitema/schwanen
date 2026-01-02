@@ -1,5 +1,10 @@
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
+if False:  # for IDE only, never runs
+    hass: Any = None
+    data: dict[str, Any] = {}
+    logger: Any = None
 
 
 # =========================
