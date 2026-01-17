@@ -116,7 +116,7 @@ def sync_calendar():
                     'end_iso': end_dt.isoformat() if end_dt else None,
                 }
                 new_events[ics_uid] = event_data
-                logger.info(f"Event aus ICS: {enhanced_summary} (ICS-UID: {ics_uid})")
+                logger.info(f"Event aus ICS: {event_data} location:{location} (ICS-UID: {ics_uid})")
 
         if not new_events:
             logger.warning("Keine Events in ICS gefunden")
@@ -154,6 +154,7 @@ def sync_calendar():
                                 existing_ha_events[ics_uid_from_desc] = {
                                     'summary': str(summary),
                                     'description': desc,
+                                    'location': component.get('LOCATION'),
                                     'dtstart': component.get('DTSTART').dt,
                                     'dtend': component.get('DTEND').dt,
                                     'uid': ics_uid_from_desc
@@ -169,27 +170,29 @@ def sync_calendar():
         # Neue oder aktualisierte Events
         for ics_uid, new_event in new_events.items():
             try:
-                    # Neues Event
-                    logger.info(f"Neues Event erstellen: {new_event['summary']}")
+                # Neues Event
+                logger.info(f"Neues Event erstellen: {new_event['summary']}")
 
-                    if hasattr(new_event['dtstart'], 'date') and not hasattr(new_event['dtstart'], 'time'):
-                        hass.services.call('calendar', 'create_event', {
-                            'entity_id': target_calendar,
-                            'summary': new_event['summary'],
-                            'description': new_event['description'],
-                            'start_date': new_event['start_iso'],
-                            'end_date': new_event['end_iso'],
-                        })
-                    else:
-                        hass.services.call('calendar', 'create_event', {
-                            'entity_id': target_calendar,
-                            'summary': new_event['summary'],
-                            'description': new_event['description'],
-                            'start_date_time': new_event['start_iso'],
-                            'end_date_time': new_event['end_iso'],
-                        })
+                if hasattr(new_event['dtstart'], 'date') and not hasattr(new_event['dtstart'], 'time'):
+                    hass.services.call('calendar', 'create_event', {
+                        'entity_id': target_calendar,
+                        'summary': new_event['summary'],
+                        'description': new_event['description'],
+                        'location': new_event['location'],
+                        'start_date': new_event['start_iso'],
+                        'end_date': new_event['end_iso'],
+                    })
+                else:
+                    hass.services.call('calendar', 'create_event', {
+                        'entity_id': target_calendar,
+                        'summary': new_event['summary'],
+                        'description': new_event['description'],
+                        'location': new_event['location'],
+                        'start_date_time': new_event['start_iso'],
+                        'end_date_time': new_event['end_iso'],
+                    })
 
-                    created_count += 1
+                created_count += 1
 
             except Exception as e:
                 logger.error(f"Fehler bei {new_event['summary']}: {e}")
