@@ -1,8 +1,104 @@
 import requests
 import icalendar
-from icalendar import Calendar
+from icalendar import Calendar, Event
+from datetime import datetime, timedelta
+from dateutil.rrule import rrulestr, rruleset
+import pytz  # für TZ-Sicherheit
+
 import re
 import os
+
+
+utc = pytz.UTC  # Global für alle Vergleiche
+
+def normalize_datetime(dt_obj):
+    """Für ALLE date/datetime → einheitliches TZ-aware datetime"""
+    if isinstance(dt_obj, datetime):
+        return utc.localize(dt_obj) if dt_obj.tzinfo is None else dt_obj.astimezone(utc)
+    return utc.localize(datetime.combine(dt_obj, datetime.min.time()))
+
+
+def flatten_ical_calendar(cal, start_range=None, end_range=None):
+    """
+    Entfaltet ICS → NEUES Calendar-Objekt mit flachen Events (walkbar!)
+    """
+
+    if start_range is None:
+        start_range = datetime.now(utc) - timedelta(days=365)
+    if end_range is None:
+        end_range = datetime.now(utc) + timedelta(days=730)
+
+    # Original parsen
+    new_cal = Calendar()  # NEUES Calendar für expanded Events
+
+    for vevent in cal.walk('VEVENT'):
+        # TZ-sichere Extraktion (wie vorher gefixt)
+        dtstart = normalize_datetime(vevent.get('dtstart').dt)
+        dtend = normalize_datetime(vevent.get('dtend', vevent.get('dtstart')).dt)
+
+        # Non-recurring
+        if 'RRULE' not in vevent:
+            if dtend >= start_range and dtstart <= end_range:
+                new_cal.add_component(_copy_normalized_vevent(vevent))
+            continue
+
+        # Recurring: expandieren
+        duration = dtend - dtstart
+        rules = rruleset()
+
+        # RRULE
+        rrule_bytes = vevent['RRULE'].to_ical()
+        rrule_str = rrule_bytes.decode('utf-8')
+        rule = rrulestr(rrule_str, dtstart=dtstart)
+        rules.rrule(rule)
+
+        # EXDATE/RDATE falls vorhanden
+        if 'EXDATE' in vevent:
+            exdates = vevent['EXDATE'].dts if hasattr(vevent['EXDATE'], 'dts') else [vevent['EXDATE']]
+            for exdate in exdates: rules.exdate(exdate.dt)
+        if 'RDATE' in vevent:
+            rdates = vevent['RDATE'].dts if hasattr(vevent['RDATE'], 'dts') else [vevent['RDATE']]
+            for rdate in rdates: rules.rdate(rdate.dt)
+
+        instance_counter = 0
+        for occ_start in rules.between(start_range, end_range, inc=True):
+            instance_counter += 1
+            occ_end = occ_start + duration
+            expanded_event = _copy_normalized_vevent(vevent, occ_start, occ_end, instance_counter)
+            new_cal.add_component(expanded_event)
+
+    return new_cal  # <- Calendar-Objekt!
+
+def _copy_normalized_vevent(vevent, new_start=None, new_end=None, instance_id=None):
+    """Kopiert VEVENT mit TZ-normalisierten Zeiten + UNIQUE UID"""
+    ev = Event()
+
+    # Original UID holen
+    original_uid = str(vevent.get('uid', 'no-uid'))
+
+    # UNIQUE UID für expanded Instances
+    if instance_id is not None:
+        unique_uid = f"{original_uid}_{instance_id}"
+    else:
+        unique_uid = original_uid
+
+    for name, value in vevent.property_items():
+        if name in ('DTSTART', 'DTEND', 'RRULE', 'EXDATE', 'RDATE', 'RECURRENCE-ID', 'UID'):
+            continue
+        ev.add(name, value)
+
+    # Normalisierte Zeiten
+    if new_start is None:
+        dtstart = normalize_datetime(vevent['DTSTART'].dt)
+        dtend = normalize_datetime(vevent.get('DTEND', vevent['DTSTART']).dt)
+    else:
+        dtstart, dtend = new_start, new_end
+
+    ev.add('DTSTART', dtstart)
+    ev.add('DTEND', dtend)
+    ev.add('UID', unique_uid)  # ✅ UNIQUE UID!
+    return ev
+
 
 def sync_calendar():
     try:
@@ -17,6 +113,7 @@ def sync_calendar():
             return
 
         ics_content = response.text
+        # logger.error(f"xxxxx rohdate {ics_content}")
 
         # 2. UNTIL-Fehler korrigieren
         logger.info("Korrigiere UNTIL-Fehler...")
@@ -35,13 +132,25 @@ def sync_calendar():
 
         logger.info("UNTIL-Fehler korrigiert")
 
+        #logger.error(f"xxxxx after UNTIL-korrektur {ics_content}")
+
+
         # 3. ICS-Datei parsen
         logger.info("Parse ICS-Datei...")
         try:
             cal = icalendar.Calendar.from_ical(ics_content)
         except Exception as e:
             logger.error(f"Fehler beim Parsen: {e}")
+            logger.exception("message")
             return
+
+
+        #logger.error(f"xxxxx cal-Object  {cal}")
+
+        new_cal = flatten_ical_calendar(cal)
+
+        #logger.error(f"xxxxx cal-Object flattend  {new_cal}")
+
         # 4. Keyword-Mapping f..r Orte definieren
         # Keyword ... Ort (case-insensitive)
         location_keywords = {
@@ -52,7 +161,8 @@ def sync_calendar():
         new_events = {}
         event_count = 0
 
-        for component in cal.walk():
+
+        for component in new_cal.walk():
             if component.name == "VEVENT":
                 event_count += 1
 
@@ -115,6 +225,7 @@ def sync_calendar():
                     'start_iso': start_dt.isoformat() if start_dt else None,
                     'end_iso': end_dt.isoformat() if end_dt else None,
                 }
+
                 new_events[ics_uid] = event_data
                 logger.info(f"Event aus ICS: {event_data} location:{location} (ICS-UID: {ics_uid})")
 
@@ -144,8 +255,8 @@ def sync_calendar():
             if os.path.isfile(calendar_storage_path):
                 with open(calendar_storage_path, 'r') as f:
                     ics_content = f.read()
-                    cal = Calendar.from_ical(ics_content)
-                    for component in cal.walk():
+                    local_cal = Calendar.from_ical(ics_content)
+                    for component in local_cal.walk():
                         if component.name == "VEVENT":
                             desc = str(component.get('DESCRIPTION', ''))
                             ics_uid_from_desc = extract_ics_uid(desc)
@@ -162,16 +273,19 @@ def sync_calendar():
                                 logger.info(f"Bestehendes Event: {summary} (ICS-UID: {ics_uid_from_desc})")
         except Exception as e:
             logger.error(f"Konnte bestehende Events nicht auslesen: {e}")
+            logger.exception("message")
+
         # 9. Vergleich und Synchronisierung
         created_count = 0
         updated_count = 0
         deleted_count = 0
 
         # Neue oder aktualisierte Events
+        #logger.error(f"xxxxxx:  {new_events}")
         for ics_uid, new_event in new_events.items():
             try:
                 # Neues Event
-                logger.info(f"Neues Event erstellen: {new_event['summary']}")
+                logger.info(f"Neues Event erstellen: {new_event['summary']} - start: {new_event['dtstart']} end: {new_event['dtend']}")
 
                 if hasattr(new_event['dtstart'], 'date') and not hasattr(new_event['dtstart'], 'time'):
                     hass.services.call('calendar', 'create_event', {
@@ -196,12 +310,14 @@ def sync_calendar():
 
             except Exception as e:
                 logger.error(f"Fehler bei {new_event['summary']}: {e}")
-                continue
+                logger.exception("message")
+            continue
         logger.info(
             f"Synchronisierung abgeschlossen: +{created_count} neu, ~{updated_count} ge..ndert, -{deleted_count} gel..scht")
 
     except Exception as e:
         logger.error(f"Kritischer Fehler: {e}")
+        logger.exception("message")
         return
 
 
@@ -216,7 +332,7 @@ def extract_ics_uid(description):
                 return description[start:end]
     except Exception as e:
         logger.error(f"Fehler beim Extrahieren der UID: {e}")
-
+        logger.exception("message")
     return None
 
 
