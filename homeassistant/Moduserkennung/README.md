@@ -41,6 +41,25 @@ Frostschutz: 6°C
 ### Hochheizen
 Alle Räume sind im Defaultmodus "Frostschutz".
 
+Nur im Falle eines Events werden die Räume von Frostschutz auf Heizen gesetzt.
+Wie lang vor einen Event die Räume auf Heizen gesetzt werden, hängt von folgenden Faktoren ab:
+1. Solltemperatur des Raumes
+2. Isttemperatur des Raumes
+3. Außentemperatur
+4. Muss nur Saal, nur Gaststube oder Saal und Gaststube in den nächsten 10 h geheizt werden?
+
+Der Saal kann ca. 2° pro Stunde hochgeheizt werden
+Die Gaststube ca. 1° pro Stunde
+Außerdem gibt es noch eine Phase, in der erst mal der Heizkreislauf aufgewärmt werden muss.
+Der ist wenn nur Saal geheizt werden muss ca. 45 Minuten. 
+Wenn nur Gaststube geheizt werden muss ca. 30 Minuten.
+Wenn beiden geheitz werden muss ca. 1h.
+
+Funktionsgraph der stetigen Funktion:
+
+
+
+
 10h (evtl. Abhängig von Isttemperatur und Außentemperatur?) vor Öffnuntszeit bzw. Termin(s.o.) wird der Modus des Raums auf "Sparen" geändert.
 4h (evtl. Abhängig von Außentemperatur?)
 
