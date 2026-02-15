@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 # =========================
 # KONSTANTEN
 # =========================
-HEIZGESCHWINDIGKEIT_SAAL = 2.0      # °C pro Stunde
+HEIZGESCHWINDIGKEIT_SAAL = 1.0  # °C pro Stunde
 HEIZGESCHWINDIGKEIT_GASTSTUBE = 1.0 # °C pro Stunde
 HEIZKREISLAUF_ZEIT = {
     "saal": 45/60,      # 45 Minuten in Stunden
@@ -109,14 +109,16 @@ def get_heizlast_vorschau():
 # 🔥 STETIGE AUSSENTEMPERATUR-FUNKTION
 def get_aussen_faktor(aussen_temp):
     """
-    Stetige Funktion: Heizgeschwindigkeit sinkt linear bei Kälte
-    Basis: 10°C = 1.0 (normal)
-    Bei 0°C: 0.8, bei -10°C: 0.6, bei 20°C: 1.3
+    Sanfte stetige Funktion: Minimaler Einfluss der Außentemperatur
+    Basis: 10°C = 1.0
+    -10°C: 0.88 (+12% längere Zeit)
+     0°C: 0.94 (+6% längere Zeit)
+    20°C: 1.10 (-10% kürzere Zeit)
     """
     if aussen_temp >= 10:
-        return min(1.0 + (aussen_temp - 10) * 0.03, 1.3)  # Max +30%
+        return min(1.0 + (aussen_temp - 10) * 0.01, 1.10)  # Max +10%
     else:
-        return max(0.6 + (aussen_temp / 10) * 0.2, 0.6)    # Min 60%
+        return max(0.88 + (aussen_temp / 10) * 0.06, 0.88)  # Min -12%
 
 
 # =========================
