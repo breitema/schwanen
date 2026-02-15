@@ -1,10 +1,5 @@
 from datetime import datetime, timedelta, timezone
 
-from typing import Any
-if False:  # for IDE only, never runs
-    hass: Any = None
-    data: dict[str, Any] = {}
-    logger: Any = None
 
 
 # =========================
@@ -94,7 +89,7 @@ def moduserkennung_saal():
         )
         logger.info("Modus Saal auf heizen gesetzt (aktiver Termin)")
 
-    elif find_event(saal_events, "@saal", 3) :
+    elif find_event(saal_events, "@saal", 8) :
         hass.services.call(
             "input_select", "select_option",
             {
@@ -102,18 +97,18 @@ def moduserkennung_saal():
                 "option": "Heizen"
             }
         )
-        logger.info("Modus Saal auf heizen gesetzt (3h)")
+        logger.info("Modus Saal auf heizen gesetzt (8h)")
 
 
-    elif find_event(saal_events, "@saal", 10):
-        hass.services.call(
-            "input_select", "select_option",
-            {
-                "entity_id": "input_select.saal_modus",
-                "option": "Sparen"
-            }
-        )
-        logger.info("Modus Saal auf sparen gesetzt (10h)")
+    #    elif find_event(saal_events, "@saal", 6):
+    #        hass.services.call(
+    #            "input_select", "select_option",
+    #            {
+    #                "entity_id": "input_select.saal_modus",
+    #                "option": "Sparen"
+    #            }
+    #        )
+    #        logger.info("Modus Saal auf sparen gesetzt (6h)")
 
     else:
         hass.services.call(
@@ -123,7 +118,7 @@ def moduserkennung_saal():
                 "option": "Frostschutz"
             }
         )
-        logger.info("Modus Saal auf Frostschutz gesetzt (>10h)")
+        logger.info("Modus Saal auf Frostschutz gesetzt (>6h)")
     return
 
 # =========================
@@ -156,7 +151,7 @@ def moduserkennung_gaststube():
         )
         logger.info("Modus Gaststube auf heizen gesetzt (aktiver Termin)")
 
-    elif find_event(gast_events, "@gaststube", 3):
+    elif find_event(gast_events, "@gaststube", 10):
         hass.services.call(
             "input_select", "select_option",
             {
@@ -164,17 +159,17 @@ def moduserkennung_gaststube():
                 "option": "Heizen"
             }
         )
-        logger.info("Modus Gaststube auf heizen gesetzt (3h)")
+        logger.info("Modus Gaststube auf heizen gesetzt (10h)")
 
-    elif find_event(gast_events, "@gaststube", 10):
-        hass.services.call(
-            "input_select", "select_option",
-            {
-                "entity_id": "input_select.gaststube_modus",
-                "option": "Sparen"
-            }
-        )
-        logger.info("Modus Gaststube auf sparen gesetzt (10h)")
+    #    elif find_event(gast_events, "@gaststube", 6):
+    #        hass.services.call(
+    #            "input_select", "select_option",
+    #            {
+    #                "entity_id": "input_select.gaststube_modus",
+    #                "option": "Sparen"
+    #            }
+    #        )
+    #        logger.info("Modus Gaststube auf sparen gesetzt (6h)")
 
     else:
         hass.services.call(
@@ -184,7 +179,7 @@ def moduserkennung_gaststube():
                 "option": "Frostschutz"
             }
         )
-        logger.info("Modus Gaststube auf Frostschutz gesetzt (>10h)")
+        logger.info("Modus Gaststube auf Frostschutz gesetzt (>6h)")
     return
 
 # aktuellen Zeitpunkt bestimmen, ab dem die Vorschau in den Kalender berechnet werden soll
