@@ -31,27 +31,38 @@ template:
   - sensor:
       - name: "Saal Solltemperatur"
         unique_id: sensor.saal_solltemperatur
+        unit_of_measurement: "°C"
         state: >
-          {% set m = states('input_select.saal_modus') %}
-          {% if m == 'Heizen' %}
-            {{ states('input_number.saal_heizen') }}
-          {% elif m == 'Sparen' %}
-            {{ states('input_number.saal_sparen') }}
+          {% if is_state('input_boolean.manueller_modus_saal', 'on') %}
+            {{ states('input_number.saal_manuell') | float(0) }}
           {% else %}
-            {{ states('input_number.saal_frost') }}
+            {% set m = states('input_select.saal_modus') %}
+            {% if m == 'Heizen' %}
+              {{ states('input_number.saal_heizen') | float(0) }}
+            {% elif m == 'Sparen' %}
+              {{ states('input_number.saal_sparen') | float(0) }}
+            {% else %}
+              {{ states('input_number.saal_frost') | float(0) }}
+            {% endif %}
           {% endif %}
+
   - sensor:
       - name: "Gaststube Solltemperatur"
         unique_id: sensor.gaststube_solltemperatur
         state: >
-          {% set m = states('input_select.gaststube_modus') %}
-          {% if m == 'Heizen' %}
-            {{ states('input_number.gaststube_heizen') }}
-          {% elif m == 'Sparen' %}
-            {{ states('input_number.gaststube_sparen') }}
+          {% if is_state('input_boolean.manueller_modus_gaststube', 'on') %}
+            {{ states('input_number.gaststube_manuell') | float(0) }}
           {% else %}
-            {{ states('input_number.gaststube_frost') }}
+            {% set m = states('input_select.gaststube_modus') %}
+            {% if m == 'Heizen' %}
+              {{ states('input_number.gaststube_heizen') }}
+            {% elif m == 'Sparen' %}
+              {{ states('input_number.gaststube_sparen') }}
+            {% else %}
+              {{ states('input_number.gaststube_frost') }}
+            {% endif %}
           {% endif %}
+
   - sensor:
       - name: "Gaststube Heizbedarf berechnet"
         unique_id: sensor.gaststube_heizbedarf_berechnet
@@ -85,15 +96,35 @@ template:
           {% if heizbedarf == 0 %}
             0
           {% else %}
-            {% set gewicht = heizbedarf / 10 %}
+            {% set gewicht = heizbedarf / 5 %}
             {% set vl =
                35
                + (20 - aussentemp) * 1.2 * gewicht
-               + heizbedarf * 6
+               + heizbedarf * 5
             %}
-            {{ [75, [35, vl] | max ] | min | round(1) }}
+            {{ [75, [50, vl] | max ] | min | round(1) }}
           {% endif %}
-  
+
+  #  - sensor:
+  #      - name: "Therme Soll-Vorlauftemperatur"
+  #        unique_id: sensor.soll_vorlauf_temperatur
+  #        unit_of_measurement: "°C"
+  #        state: >
+  #          {% set ta = states('sensor.aussentemperatursensor_temperatur') | float(0) %}
+  #
+  #          {% set hb = states('sensor.heizbedarf_hoeherer_wert') | float(0) %}
+  #
+  #          {% set m = -1.5 %}
+  #
+  #          {% set tb = 55 + hb %}
+  #
+  #          {% if hb == 0 %}
+  #            0
+  #          {% else %}
+  #            {% set tv = (m * ta + tb) | round(1) %}
+  #
+  #            {{ [70, [50, tv] | max ] | min | round(1) }}
+  #          {% endif %}
 
   #####################################################
   # Werte für Solltemperatur High und low berechnen   #
@@ -104,12 +135,12 @@ template:
         unique_id: sensor.therme_target_temp_low
         unit_of_measurement: "°C"
         state: >
-          {{ states('sensor.therme_soll_vorlauftemperatur')|float - 5 }}
+          {{ states('sensor.therme_soll_vorlauftemperatur')|float(50) - 7 }}
       - name: "Therme Zieltemperatur high"
         unique_id: sensor.therme_target_temp_high
         unit_of_measurement: "°C"
         state: >
-          {{ states('sensor.therme_soll_vorlauftemperatur')|float + 5 }}
+          {{ states('sensor.therme_soll_vorlauftemperatur')|float(50) + 7 }}
 
 
 
@@ -121,6 +152,11 @@ input_select:
   gaststube_modus:
     name: Modus Gaststube
     options: ["Frostschutz", "Sparen", "Heizen"]
+  saal_timer_dauer:
+    options:
+      - "15"
+      - "30"
+      - "60"
 
 notify:
   - platform: smtp
@@ -143,7 +179,7 @@ climate:
     heater: switch.fake_heater  # Dummy
     target_sensor: sensor.soll_vorlauf_temperatur
     min_temp: 20
-    max_temp: 70
+    max_temp: 80
     ac_mode: false
     cold_tolerance: 0.3
     hot_tolerance: 0.3
@@ -159,3 +195,16 @@ input_boolean:
   manueller_modus_gaststube:
     name: Manueller Modus Gaststube
     icon: mdi:hand
+
+timer:
+  saal_timer_manueller_modus:
+    name: Saal Timer Manueller Modus
+    duration: "01:00:00"
+
+  gaststube_timer_manueller_modus:
+    name: Gaststube Timer Manueller Modus
+    duration: "01:00:00"
+
+
+
+
